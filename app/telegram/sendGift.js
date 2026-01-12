@@ -11,20 +11,29 @@ module.exports = async (page) => {
   // Select a gift (e.g., the first available one or a specific one)
   // Assuming a grid of gifts. We pick one around the middle or random.
 
-  // Wait for grid
-  await page.waitForSelector(".gift-grid, .stars-gift-list");
-
-  // Click a gift item
-  const gifts = await page.$$(".gift-item, .stars-gift-item");
-  if (gifts.length > 0) {
-    // Pick random or first
-    await gifts[0].click();
-  } else {
-    throw new Error("No gifts found");
+  // Select the first gift in the grid
+  // We need to wait for the grid to appear
+  const giftGrid = ".gift-list, .react-virtuoso-grid, .scrollable-y";
+  logger.info("Waiting for gift list...");
+  try {
+    await page.waitForSelector(giftGrid, { timeout: 10000 });
+  } catch (e) {
+    logger.error("Gift grid not found.");
+    const fs = require("fs");
+    fs.writeFileSync("debug_gift_list.html", await page.content());
+    logger.info("Saved debug_gift_list.html");
+    throw e;
   }
+  await sleep(2000); // Allow grid to populate
+
+  // Click first gift (often a button or div inside grid)
+  await page.click(`${giftGrid} button, ${giftGrid} > div:first-child`, {
+    force: true,
+  });
   await sleep(1000);
 
-  // Click Send/Pay button
+  // Click send button
+  logger.info('Clicking "Send" button...');
   // Usually "Send for X Stars"
   await page.click(
     'button:has-text("Send"), button:has-text("Подарить"), button.btn-primary'

@@ -81,15 +81,39 @@ module.exports = async (page, target) => {
         ".btn-menu-more, .chat-utils .btn-icon, .btn-menu-toggle, .tgico-more, button[title='More actions']",
         { force: true }
       );
-      await sleep(500);
+      await sleep(1000); // Increased wait for menu animation
       logger.info("Menu clicked, looking for Gift option...");
-      await page.click(
-        'div:has-text("Send Gift"), div:has-text("Отправить подарок"), .btn-menu-item:has-text("Gift")',
-        { force: true }
-      );
+
+      const giftMenuSelector =
+        'div:has-text("Send Gift"), div:has-text("Отправить подарок"), .btn-menu-item:has-text("Gift"), .btn-menu-item:has-text("Send a Gift")';
+      try {
+        await page.waitForSelector(giftMenuSelector, { timeout: 3000 });
+        await page.click(giftMenuSelector, { force: true });
+      } catch (e) {
+        logger.warn(
+          "Gift menu item not found by text. Trying icon/generic selectors..."
+        );
+        // Sometimes it's the Nth item or has a specific icon class
+        // Try partial text match
+        await page.click(
+          'div[role="menuitem"]:has-text("Gift"), div[role="menuitem"]:has-text("подарок"), div[role="menuitem"]:has-text("🎁")',
+          { force: true }
+        );
+      }
     }
   } catch (e) {
     logger.error(`Error in openGifts: ${e.message}`);
+    // Check for "Share Contact" or other blocking modals
+    if (await page.isVisible(".modal-dialog")) {
+      logger.warn("Modal detected, attempting to close...");
+      await page.click(
+        '.modal-dialog .btn-close, .modal-dialog button[aria-label="Close"]',
+        { force: true }
+      );
+      await sleep(500);
+      // Retry logic could go here
+    }
+
     try {
       const fs = require("fs");
       const content = await page.content();
