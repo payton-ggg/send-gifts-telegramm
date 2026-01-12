@@ -13,6 +13,7 @@ const STATE_FILE = path.resolve(__dirname, "state/run.json");
 
 (async () => {
   logger.info("Starting Telegram Gift Agent...");
+  // Automation sequence initiated
 
   try {
     // 1. Launch Browser

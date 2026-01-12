@@ -26,7 +26,9 @@ module.exports = async (page) => {
 
   // Click Send/Pay button
   // Usually "Send for X Stars"
-  await page.click('button:has-text("Send"), button.btn-primary');
+  await page.click(
+    'button:has-text("Send"), button:has-text("Подарить"), button.btn-primary'
+  );
 
   // Confirm payment if needed (password or just confirm)
   // If payment modal appears

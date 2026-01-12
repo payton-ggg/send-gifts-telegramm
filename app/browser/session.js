@@ -16,7 +16,7 @@ module.exports = {
     // Note: Selectors might change, this is a basic check
     try {
       await page.waitForSelector(".chat-list, #telegram-search-input", {
-        timeout: 10000,
+        timeout: 40000,
       });
       logger.success("Session is valid");
     } catch (e) {
