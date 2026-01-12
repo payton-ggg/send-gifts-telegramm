@@ -4,11 +4,13 @@ const sleep = require("../utils/sleep");
 /**
  * Opens the gift interface for the current chat
  * @param {import('playwright').Page} page
+ * @param {string} target - Username or Name to click in header
  */
-module.exports = async (page) => {
+module.exports = async (page, target) => {
   logger.step("Opening gifts interface...");
   logger.info(`Current URL: ${page.url()}`);
   await sleep(2000); // Allow UI to settle strictly
+
   const giftBtnSelector =
     'button:has-text("Send Gift"), button:has-text("Отправить подарок"), .btn-gift';
   const moreMenuSelector =
@@ -16,26 +18,33 @@ module.exports = async (page) => {
 
   await sleep(500);
 
-  if (
-    (await page.isVisible(giftBtnSelector)) ||
-    (await page.isVisible(moreMenuSelector))
-  ) {
-    logger.info("Profile/Menu seems open, checking for button...");
-  } else {
-    logger.info("Opening profile...");
-    // Expanded selectors for chat header
-    const headerSelector =
-      ".chat-info, .sidebar-header, .chat-header, .top .peer-title, .user-title";
-    try {
-      logger.info("Waiting for header...");
-      await page.waitForSelector(headerSelector, { timeout: 5000 });
-      logger.info("Header found, clicking...");
-      await page.click(headerSelector, { force: true });
-    } catch (e) {
-      logger.warn("Header selector failed. Trying JS click...");
-      const viewport = page.viewportSize();
-      logger.info(`Viewport: ${JSON.stringify(viewport)}`);
+  // Strategy: Click the user's name in the header
+  // This is generic and should work across versions
+  try {
+    logger.info(`Looking for header with name "${target}"...`);
+    // We look for the text in the top area (rough assumption)
+    // or just any text element with the name that is visible
+    // We exclude the input field or chat list items if possible, but simplest is just text=target
 
+    // Note: target might be "guilemt", but display name might be different?
+    // If target is username, display name might be "Guilem T".
+    // If so, this fails.
+    // BUT, we opened the chat using this target.
+    // Let's assume the header contains it.
+    // If not, we fall back to coordinate click.
+
+    const headerNameSelector = `.chat-info :text("${target}"), .sidebar-header :text("${target}"), .top :text("${target}"), h3:has-text("${target}")`;
+
+    if (await page.isVisible(headerNameSelector)) {
+      logger.info(`Found name "${target}", clicking...`);
+      await page.click(headerNameSelector, { force: true });
+      await sleep(1000);
+    } else {
+      logger.warn(
+        `Name "${target}" not found in header. Trying Generic JS Click...`
+      );
+      // ... existing JS/Coordinate fallback ...
+      const viewport = page.viewportSize();
       const clicked = await page.evaluate(() => {
         const el =
           document.querySelector(".chat-info") ||
@@ -48,25 +57,19 @@ module.exports = async (page) => {
         }
         return false;
       });
-
       if (!clicked) {
-        logger.warn(
-          "JS Click failed (element not found). Trying coordinate click..."
-        );
+        logger.warn("JS Click failed. performing Coordinate Click...");
         const x = viewport && viewport.width ? viewport.width / 2 : 500;
         await page.mouse.click(x, 40);
-      } else {
-        logger.info("JS Click successful");
       }
+      await sleep(1000);
     }
-    await sleep(1000); // Wait for profile
+  } catch (e) {
+    logger.error(`Header Open Error: ${e.message}`);
   }
 
   // Look for "Send Gift" or similar button in profile
-  // Or sometimes it's under the "More" (...) menu
   try {
-    const giftBtnSelector =
-      'button:has-text("Send Gift"), button:has-text("Отправить подарок"), .btn-gift';
     logger.info("Checking for Send Gift button...");
     if (await page.isVisible(giftBtnSelector)) {
       logger.info("Button found, clicking...");

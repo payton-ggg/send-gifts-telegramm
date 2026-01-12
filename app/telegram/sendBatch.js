@@ -6,10 +6,11 @@ const openGifts = require("./openGifts");
 /**
  * Sends a batch of gifts
  * @param {import('playwright').Page} page
+ * @param {string} target
  * @param {number} count
  * @param {object} delays - {min, max}
  */
-module.exports = async (page, count, delays) => {
+module.exports = async (page, target, count, delays) => {
   logger.step(`Starting batch send of ${count} gifts...`);
 
   for (let i = 1; i <= count; i++) {
@@ -21,7 +22,7 @@ module.exports = async (page, count, delays) => {
     // For now assuming we return to chat or need to re-click "Send Gift" button
 
     try {
-      await openGifts(page); // Ensure UI is open
+      await openGifts(page, target); // Ensure UI is open
       await sendGift(page);
 
       logger.success(`Gift ${i} sent successfully`);
