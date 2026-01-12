@@ -72,79 +72,118 @@ module.exports = async (page, target) => {
   // Look for "Send Gift" or similar button in profile
   try {
     logger.info("Checking for Send Gift button...");
-    if (await page.isVisible(giftBtnSelector)) {
-      logger.info("Button found, clicking...");
-      await page.click(giftBtnSelector, { force: true });
-    } else {
+    // Retry loop: Try once, if fail, toggle profile and try again
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) {
+        logger.info("Retrying gift open strategy after toggling profile...");
+        // Click header to toggle profile
+        const headerInfo = await page.$(
+          ".chat-info, .chat-header .person-name, .chat-header h3"
+        );
+        if (headerInfo) {
+          logger.info("Clicking header info to toggle profile...");
+          await headerInfo.click();
+          await sleep(2000); // Wait for sidebar animation
+        } else {
+          logger.warn("Could not find header info to click.");
+        }
+      }
+
+      // 1. Check if Send Gift button is directly visible
+      if (await page.isVisible(giftBtnSelector)) {
+        logger.info("Found Send Gift button directly.");
+        await page.click(giftBtnSelector, { force: true });
+        return;
+      }
+
       logger.info('Send Gift not visible, trying "More" menu...');
-      // Try 'More' menu
-      // Robust strategy: Find all candidates and click the one in the top header (y < 150)
-      // We iterate and Verification that the menu actually opened
+
+      // 2. Try "More" menu
       const moreCandidates = await page.$$(
         "button[title='More actions'], .btn-menu-more, .tgico-more, .chat-utils .btn-icon"
       );
       let menuOpened = false;
 
+      // Filter candidates to top header only (avoid sticker picker buttons etc)
+      const validCandidates = [];
       for (const btn of moreCandidates) {
-        if (await btn.isVisible()) {
-          const box = await btn.boundingBox();
-          // Check if button is in header area (top 150px)
-          if (box && box.y < 150 && box.x > 0) {
-            logger.info(`Clicking candidate at (${box.x}, ${box.y})...`);
-            await btn.click({ force: true });
-            // Wait and check if menu appeared
-            try {
-              // Look for the menu container or an item within it
-              await page.waitForSelector(
-                ".bubble.menu-container, .btn-menu-item",
-                { state: "visible", timeout: 2000 }
-              );
-              logger.info("Menu opened successfully!");
-              menuOpened = true;
-              break;
-            } catch (e) {
-              logger.warn("Menu did not open, trying next candidate...");
-            }
+        const box = await btn.boundingBox();
+        if (box && box.y < 150 && box.x > 0) validCandidates.push(btn);
+      }
+      logger.info(
+        `Found ${validCandidates.length} 'More' button candidates in header.`
+      );
+
+      for (const btn of validCandidates) {
+        const box = await btn.boundingBox();
+        const html = await btn.evaluate((el) => el.outerHTML);
+        logger.info(`Clicking candidate at (${box.x}, ${box.y}): ${html}`);
+
+        // Click strategy: Hover then Click
+        try {
+          await btn.scrollIntoViewIfNeeded();
+          await btn.hover();
+          await sleep(200);
+          await btn.click();
+        } catch (clickErr) {
+          logger.warn(
+            `Standard click failed, using force: ${clickErr.message}`
+          );
+          await btn.click({ force: true });
+        }
+
+        // Verification
+        try {
+          await page.waitForSelector(
+            '.bubble.menu-container, .btn-menu-item, div[role="presentation"] .menu-container',
+            { state: "visible", timeout: 3000 }
+          );
+          logger.info("Menu opened successfully!");
+          menuOpened = true;
+          break; // Stop trying candidates
+        } catch (e) {
+          logger.warn(
+            "Menu did not open by selector (timeout). Checking button state..."
+          );
+          // Check if button is active
+          const isBtnActive = await btn.evaluate((el) =>
+            el.classList.contains("active")
+          );
+          if (isBtnActive) {
+            logger.info("Button has 'active' class. Assuming menu is open.");
+            menuOpened = true;
+            break;
           }
         }
       }
 
-      if (!menuOpened) {
-        logger.warn(
-          "Could not open More menu with any candidate. Trying fallback selector..."
-        );
-        const moreBtnSelector = `
-            :is(.chat-info, .chat-header, .sidebar-header) .btn-menu-more,
-            :is(.chat-info, .chat-header, .sidebar-header) button[title='More actions']
-          `;
-        if (await page.isVisible(moreBtnSelector)) {
-          await page.click(moreBtnSelector, { force: true });
-          await sleep(1000);
-        }
-      }
-
-      logger.info("Looking for Gift option in menu...");
-      const giftMenuSelector =
-        'div:has-text("Send Gift"), div:has-text("Отправить подарок"), .btn-menu-item:has-text("Gift"), .btn-menu-item:has-text("Send a Gift")';
-      try {
-        await page.waitForSelector(giftMenuSelector, { timeout: 3000 });
-        await page.click(giftMenuSelector, { force: true });
-      } catch (e) {
-        if (menuOpened) {
+      if (menuOpened) {
+        logger.info("Looking for Gift option in menu...");
+        const giftMenuSelector =
+          'div:has-text("Send Gift"), div:has-text("Отправить подарок"), .btn-menu-item:has-text("Gift"), .btn-menu-item:has-text("Send a Gift")';
+        try {
+          await page.waitForSelector(giftMenuSelector, { timeout: 3000 });
+          await page.click(giftMenuSelector, { force: true });
+          return; // Success!
+        } catch (e) {
           logger.warn(
-            "Gift menu item not found by text. Trying icon/generic selectors in menu..."
+            "Gift option not found in menu by text. Trying generic icons..."
           );
-          // Scope to the open menu if possible, or just look for typical items
-          await page.click(
-            '.bubble.menu-container div[role="menuitem"]:has-text("Gift"), .bubble.menu-container div[role="menuitem"]:has-text("🎁")',
-            { force: true }
-          );
-        } else {
-          logger.error("Menu never opened, skipping gift selection.");
-          throw new Error("Failed to open More menu");
+          try {
+            await page.click(
+              '.bubble.menu-container div[role="menuitem"]:has-text("Gift"), .bubble.menu-container div[role="menuitem"]:has-text("🎁")',
+              { force: true }
+            );
+            return; // Success (hopefully)
+          } catch (iconErr) {
+            logger.error("Failed to find Gift option in menu.");
+          }
         }
       }
-    }
+    } // End attempt loop
+
+    logger.error("Failed to open Gift interface after retries.");
+    throw new Error("Failed to open Gift interface");
   } catch (e) {
     logger.error(`Error in openGifts: ${e.message}`);
     // Check for "Share Contact" or other blocking modals
