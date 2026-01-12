@@ -11,6 +11,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "nodemon": "^3.1.11"
+    "chalk": "^5.6.2",
+    "dayjs": "^1.11.19",
+    "nodemon": "^3.1.11",
+    "playwright": "^1.57.0"
   }
 }
