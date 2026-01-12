@@ -13,9 +13,21 @@ module.exports = async (page) => {
 
   // Select the first gift in the grid
   // We need to wait for the grid to appear
-  const giftGrid = ".gift-list, .react-virtuoso-grid, .scrollable-y";
-  logger.info("Waiting for gift list...");
+  // Select the first gift in the grid
+  // We need to wait for the grid to appear
+  // Widen selector to catch various list containers
+  const giftGrid =
+    ".gift-list, .react-virtuoso-grid, .scrollable-y, .scrollable, .tab-content, .custom-scroll";
+  logger.info("Waiting for gift list or dialog...");
   try {
+    // First wait for the modal container to be safe
+    await page
+      .waitForSelector('div[role="dialog"], .modal-content, .popup', {
+        timeout: 5000,
+      })
+      .catch(() => logger.warn("Dialog container not found explicitly"));
+
+    // Then wait for the grid
     await page.waitForSelector(giftGrid, { timeout: 10000 });
   } catch (e) {
     logger.error("Gift grid not found.");
