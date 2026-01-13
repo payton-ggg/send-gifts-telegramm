@@ -4,8 +4,9 @@ const sleep = require("../utils/sleep");
 /**
  * Sends a selected gift
  * @param {import('playwright').Page} page
+ * @param {object} delays - {min, max}
  */
-module.exports = async (page) => {
+module.exports = async (page, delays) => {
   logger.step("Sending a gift...");
 
   // Select a gift (e.g., the first available one or a specific one)
@@ -81,7 +82,7 @@ module.exports = async (page) => {
       );
       giftTrigger = await page.waitForSelector(`${giftItemSelector}`, {
         state: "visible",
-        timeout: 10000,
+        timeout: 5000,
       });
     }
 
@@ -93,7 +94,7 @@ module.exports = async (page) => {
     throw e;
   }
 
-  await sleep(1500);
+  await sleep(delays.min / 2);
 
   // Click strategy
   try {
@@ -104,7 +105,7 @@ module.exports = async (page) => {
       );
       // We click the trigger (the whole item or the button)
       await giftTrigger.click({ force: true });
-      await sleep(1000);
+      await sleep(delays.min / 2);
     } else {
       throw new Error("Gift trigger is null at click stage.");
     }
@@ -121,7 +122,7 @@ module.exports = async (page) => {
 
   try {
     const sendBtn = await targetFrame.waitForSelector(sendButtonSelector, {
-      timeout: 15000,
+      timeout: 5000,
     });
     if (sendBtn) {
       logger.info("Clicking final confirmation button...");
@@ -141,6 +142,6 @@ module.exports = async (page) => {
     }
   }
 
-  await sleep(3000);
+  await sleep(delays.min);
   logger.success("Gift send sequence completed");
 };

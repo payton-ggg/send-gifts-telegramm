@@ -27,7 +27,7 @@ const STATE_FILE = path.resolve(__dirname, "state/run.json");
 
     // 4. Execute Scenario
     logger.step("Executing scenario...");
-    await openChat(page, runConfig.target);
+    await openChat(page, runConfig.target, runConfig.delays);
     await sendBatch(
       page,
       runConfig.target,

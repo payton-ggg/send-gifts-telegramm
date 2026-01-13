@@ -5,9 +5,13 @@ const sleep = require("../utils/sleep");
  * Opens a chat with the target user
  * @param {import('playwright').Page} page
  * @param {string} target - Username or phone
+ * @param {object} delays - {min, max}
  */
-module.exports = async (page, target) => {
+module.exports = async (page, target, delays) => {
   logger.step(`Opening chat with ${target}...`);
+
+  const minDelay = delays ? delays.min : 1000;
+  const shortDelay = delays ? delays.min / 4 : 300;
 
   // Click search and clear
   const searchInput = "#telegram-search-input, .input-search-input";
@@ -31,11 +35,11 @@ module.exports = async (page, target) => {
     throw new Error(`User ${target} not found`);
   }
 
-  await sleep(1000);
+  await sleep(minDelay);
 
   // Try navigation approach: ArrowDown -> Enter
   await page.keyboard.press("ArrowDown");
-  await sleep(300);
+  await sleep(shortDelay);
   await page.keyboard.press("Enter");
 
   // Wait to see if chat opened

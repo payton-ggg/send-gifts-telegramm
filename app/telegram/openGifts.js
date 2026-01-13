@@ -5,11 +5,12 @@ const sleep = require("../utils/sleep");
  * Opens the gift interface for the current chat
  * @param {import('playwright').Page} page
  * @param {string} target - Username or Name to click in header
+ * @param {object} delays - {min, max}
  */
-module.exports = async (page, target) => {
+module.exports = async (page, target, delays) => {
   logger.step("Opening gifts interface...");
   logger.info(`Current URL: ${page.url()}`);
-  await sleep(2000); // Allow UI to settle strictly
+  await sleep(delays.min); // Allow UI to settle strictly
 
   const headerSelector = ":is(.chat-info, .chat-header, .sidebar-header)";
   const giftBtnSelector =
@@ -17,7 +18,7 @@ module.exports = async (page, target) => {
   const moreMenuSelector =
     ".btn-menu-more, .chat-utils .btn-icon, .btn-menu-toggle";
 
-  await sleep(500);
+  await sleep(delays.min / 4);
 
   // Strategy: Click the user's name in the header
   // This is generic and should work across versions
@@ -39,7 +40,7 @@ module.exports = async (page, target) => {
     if (await page.isVisible(headerNameSelector)) {
       logger.info(`Found name "${target}", clicking...`);
       await page.click(headerNameSelector, { force: true });
-      await sleep(1000);
+      await sleep(delays.min / 2);
     } else {
       logger.warn(
         `Name "${target}" not found in header. Trying Generic JS Click...`
@@ -63,7 +64,7 @@ module.exports = async (page, target) => {
         const x = viewport && viewport.width ? viewport.width / 2 : 500;
         await page.mouse.click(x, 40);
       }
-      await sleep(1000);
+      await sleep(delays.min / 2);
     }
   } catch (e) {
     logger.error(`Header Open Error: ${e.message}`);
@@ -83,7 +84,7 @@ module.exports = async (page, target) => {
         if (headerInfo) {
           logger.info("Clicking header info to toggle profile...");
           await headerInfo.click();
-          await sleep(2000); // Wait for sidebar animation
+          await sleep(delays.min); // Wait for sidebar animation
         } else {
           logger.warn("Could not find header info to click.");
         }
@@ -123,7 +124,7 @@ module.exports = async (page, target) => {
         try {
           await btn.scrollIntoViewIfNeeded();
           await btn.hover();
-          await sleep(200);
+          await sleep(delays.min / 10);
           await btn.click();
         } catch (clickErr) {
           logger.warn(

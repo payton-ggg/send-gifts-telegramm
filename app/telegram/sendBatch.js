@@ -13,17 +13,16 @@ const openGifts = require("./openGifts");
 module.exports = async (page, target, count, delays) => {
   logger.step(`Starting batch send of ${count} gifts...`);
 
+  // Initial stabilization delay
+  await require("../utils/randomDelay")(delays.min / 2, delays.min);
+
   for (let i = 1; i <= count; i++) {
     logger.info(`Processing gift ${i}/${count}`);
 
-    // We assume we need to re-open gift UI or it stays open?
-    // Safer to ensure flow context.
-    // If Send Gift closes the modal, we might need to reopen.
-    // For now assuming we return to chat or need to re-click "Send Gift" button
-
     try {
-      await openGifts(page, target); // Ensure UI is open
-      await sendGift(page);
+      // Pass the delays config to maintain consistency throughout the flow
+      await openGifts(page, target, delays);
+      await sendGift(page, delays);
 
       logger.success(`Gift ${i} sent successfully`);
 
