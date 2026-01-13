@@ -12,73 +12,113 @@ module.exports = async (page) => {
   // Assuming a grid of gifts. We pick one around the middle or random.
 
   // Select the first gift in the grid
-  // Use specific classes provided by user: _gridItem_1prhd_20, _viewList_1prhd_62
-  // We refine the giftGrid to be more specific to the dialog content
-  const dialogSelector =
-    'div[role="dialog"], .modal-content, .popup, .KAn2UaN5'; // Added common telegram modal class
+  // User specifically requested to find the first "15" and click it (likely the price)
   const giftItemSelector =
-    'div[class*="_gridItem_"], div[class*="_viewList_"], .gift-item, .react-virtuoso-grid div[role="listitem"]';
+    'div[class*="_gridItem_"], ._gridItem_1prhd_20, div[class*="_viewList_"]';
+  const priceSelector = 'span:has-text("15"), div:has-text("15")';
 
-  logger.info("Waiting for gift list or dialog...");
+  logger.info("Waiting for gift list items (targeting '15' or grid items)...");
+
+  let targetFrame = page;
+  let giftItem = null;
+
   try {
-    // Wait for dialog or specific gift container
-    await page.waitForSelector(`${dialogSelector}, ${giftItemSelector}`, {
-      state: "visible",
-      timeout: 10000,
-    });
-    logger.info("Gift interface/item detected.");
-  } catch (e) {
-    logger.error("Gift grid or item not found.");
-    const content = await page.content();
-    require("fs").writeFileSync("debug_gift_list.html", content);
-    logger.info("Saved debug_gift_list.html for analysis.");
-    throw e;
-  }
+    // Try to find by text "15" first as requested
+    giftItem = await page
+      .waitForSelector(priceSelector, { state: "visible", timeout: 7000 })
+      .catch(() => null);
 
-  await sleep(1500); // Allow animation and data loading
+    if (!giftItem) {
+      logger.info("Text '15' not found immediately, checking grid items...");
+      giftItem = await page
+        .waitForSelector(giftItemSelector, { state: "visible", timeout: 5000 })
+        .catch(() => null);
+    }
 
-  // Click strategy: Find visible gift items and click the first one
-  logger.info("Attempting to click first gift item...");
-  try {
-    // Prioritize the user's specific classes if they exist
-    const items = await page.$$(giftItemSelector);
-    let clicked = false;
-    for (const item of items) {
-      if (await item.isVisible()) {
-        const box = await item.boundingBox();
-        if (box && box.width > 0 && box.height > 0) {
-          logger.info(`Clicking gift item at (${box.x}, ${box.y})`);
-          await item.click({ force: true });
-          clicked = true;
+    // Check frames if still not found
+    if (!giftItem) {
+      logger.info("Searching in sub-frames...");
+      for (const frame of page.frames()) {
+        giftItem = await frame
+          .waitForSelector(`${priceSelector}, ${giftItemSelector}`, {
+            state: "visible",
+            timeout: 2000,
+          })
+          .catch(() => null);
+        if (giftItem) {
+          logger.info(`Found element in frame: ${frame.url()}`);
+          targetFrame = frame;
           break;
         }
       }
     }
 
-    if (!clicked) {
-      logger.warn("No visible gift items found. Trying fallback click...");
-      await page.click(
-        'div[class*="_gridItem_"]:first-child, .gift-item:first-child',
-        { force: true }
+    if (!giftItem) {
+      // Final fallback wait
+      giftItem = await page.waitForSelector(
+        `${giftItemSelector}, ${priceSelector}`,
+        { state: "visible", timeout: 10000 }
       );
     }
+
+    logger.info("Gift trigger element detected.");
+  } catch (e) {
+    logger.error(
+      "Could not find gift items or price '15'. Saving debug info..."
+    );
+    const content = await page.content();
+    require("fs").writeFileSync("debug_gift_list.html", content);
+    throw e;
+  }
+
+  await sleep(1500);
+
+  // Click strategy
+  try {
+    // First try to click the specific "15" element if we found it
+    const priceItems = await targetFrame.$$(priceSelector);
+    if (priceItems.length > 0) {
+      logger.info(
+        `Found ${priceItems.length} elements with text '15'. Clicking the first one.`
+      );
+      await priceItems[0].click({ force: true });
+      await sleep(1000);
+    } else {
+      // Fallback to general grid items
+      const items = await targetFrame.$$(giftItemSelector);
+      logger.info(`Found ${items.length} gift grid items.`);
+      if (items.length > 0) {
+        await items[0].click({ force: true });
+        await sleep(1000);
+      } else {
+        throw new Error(
+          "No clickable elements found despite success in waitForSelector"
+        );
+      }
+    }
   } catch (err) {
-    logger.error(`Failed to click gift: ${err.message}`);
+    logger.error(`Failed to select gift: ${err.message}`);
     throw err;
   }
-  await sleep(1000);
 
-  // Click send button
-  logger.info('Clicking "Send" button...');
-  // Usually "Send for X Stars"
-  await page.click(
-    'button:has-text("Send"), button:has-text("Подарить"), button.btn-primary'
-  );
+  // Click final Send button
+  logger.info('Waiting for "Send" / "Подарить" button...');
+  const sendButtonSelector =
+    'button:has-text("Send"), button:has-text("Подарить"), button:has-text("Send for"), .Button.primary.fluid, .Button.confirm';
 
-  // Confirm payment if needed (password or just confirm)
-  // If payment modal appears
+  try {
+    const sendBtn = await targetFrame.waitForSelector(sendButtonSelector, {
+      timeout: 10000,
+    });
+    if (sendBtn) {
+      logger.info("Clicking final button...");
+      await sendBtn.click({ force: true });
+    }
+  } catch (e) {
+    logger.error("Could not find final send button. Error: " + e.message);
+    throw e;
+  }
+
   await sleep(2000);
-
-  // Check for successful close or confirmation toast
-  logger.success("Gift sent command issued");
+  logger.success("Gift send sequence completed");
 };
