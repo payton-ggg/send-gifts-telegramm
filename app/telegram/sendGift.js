@@ -12,36 +12,60 @@ module.exports = async (page) => {
   // Assuming a grid of gifts. We pick one around the middle or random.
 
   // Select the first gift in the grid
-  // We need to wait for the grid to appear
-  // Select the first gift in the grid
-  // We need to wait for the grid to appear
-  // Widen selector to catch various list containers
-  const giftGrid =
-    ".gift-list, .react-virtuoso-grid, .scrollable-y, .scrollable, .tab-content, .custom-scroll";
+  // Use specific classes provided by user: _gridItem_1prhd_20, _viewList_1prhd_62
+  // We refine the giftGrid to be more specific to the dialog content
+  const dialogSelector =
+    'div[role="dialog"], .modal-content, .popup, .KAn2UaN5'; // Added common telegram modal class
+  const giftItemSelector =
+    'div[class*="_gridItem_"], div[class*="_viewList_"], .gift-item, .react-virtuoso-grid div[role="listitem"]';
+
   logger.info("Waiting for gift list or dialog...");
   try {
-    // First wait for the modal container to be safe
-    await page
-      .waitForSelector('div[role="dialog"], .modal-content, .popup', {
-        timeout: 5000,
-      })
-      .catch(() => logger.warn("Dialog container not found explicitly"));
-
-    // Then wait for the grid
-    await page.waitForSelector(giftGrid, { timeout: 10000 });
+    // Wait for dialog or specific gift container
+    await page.waitForSelector(`${dialogSelector}, ${giftItemSelector}`, {
+      state: "visible",
+      timeout: 10000,
+    });
+    logger.info("Gift interface/item detected.");
   } catch (e) {
-    logger.error("Gift grid not found.");
-    const fs = require("fs");
-    fs.writeFileSync("debug_gift_list.html", await page.content());
-    logger.info("Saved debug_gift_list.html");
+    logger.error("Gift grid or item not found.");
+    const content = await page.content();
+    require("fs").writeFileSync("debug_gift_list.html", content);
+    logger.info("Saved debug_gift_list.html for analysis.");
     throw e;
   }
-  await sleep(2000); // Allow grid to populate
 
-  // Click first gift (often a button or div inside grid)
-  await page.click(`${giftGrid} button, ${giftGrid} > div:first-child`, {
-    force: true,
-  });
+  await sleep(1500); // Allow animation and data loading
+
+  // Click strategy: Find visible gift items and click the first one
+  logger.info("Attempting to click first gift item...");
+  try {
+    // Prioritize the user's specific classes if they exist
+    const items = await page.$$(giftItemSelector);
+    let clicked = false;
+    for (const item of items) {
+      if (await item.isVisible()) {
+        const box = await item.boundingBox();
+        if (box && box.width > 0 && box.height > 0) {
+          logger.info(`Clicking gift item at (${box.x}, ${box.y})`);
+          await item.click({ force: true });
+          clicked = true;
+          break;
+        }
+      }
+    }
+
+    if (!clicked) {
+      logger.warn("No visible gift items found. Trying fallback click...");
+      await page.click(
+        'div[class*="_gridItem_"]:first-child, .gift-item:first-child',
+        { force: true }
+      );
+    }
+  } catch (err) {
+    logger.error(`Failed to click gift: ${err.message}`);
+    throw err;
+  }
   await sleep(1000);
 
   // Click send button
