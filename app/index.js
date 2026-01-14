@@ -51,7 +51,7 @@ const STATE_FILE = path.resolve(__dirname, "state/run.json");
     await context.close();
   } catch (error) {
     logger.error(`Critical Error: ${error.message}`);
-    // console.error(error); // Optional verbose loge.screenshot({ path: "error_screenshot.png" });
+    await page.screenshot({ path: "error_screenshot.png" });
     try {
       logger.info("Saved error_screenshot.png");
     } catch (e) {

@@ -9,7 +9,7 @@ module.exports = {
 
   // Delays between actions (ms)
   delays: {
-    min: 2000,
-    max: 5000,
+    min: 1000,
+    max: 2000,
   },
 };

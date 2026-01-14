@@ -136,7 +136,7 @@ module.exports = async (page, delays) => {
       'div[role="dialog"] button.primary, .modal-content button.primary'
     );
     if (fallbackBtn) {
-      await fallbackBtn.click({ force: true });
+      // await fallbackBtn.click({ force: true });
     } else {
       throw new Error("Final send button not found: " + e.message);
     }
