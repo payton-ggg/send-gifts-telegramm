@@ -4,7 +4,7 @@ module.exports = {
 
   // Gift details
   gift: {
-    count: 1, // Total hearts to send
+    count: 3, // Total hearts to send
   },
 
   // Delays between actions (ms)
